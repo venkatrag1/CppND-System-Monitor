@@ -81,6 +81,7 @@ string LinuxParser::Kernel() {
   if (!GetLineTokens(stream, tokens, KernelVersionTokens::kKVNumTokens_)) {
     throw std::runtime_error("Cannot parse kernel version file");
   }
+  stream.close();
   return tokens[KernelVersionTokens::kVersion_];
 }
 
@@ -107,8 +108,9 @@ vector<int> LinuxParser::Pids() {
 // DONE: Read and return the system memory utilization
 float LinuxParser::MemoryUtilization() {
   std::ifstream stream(kProcDirectory + kMeminfoFilename);
-  long memTotal = std::stol(GetKeyValue(stream, "MemTotal:"));
-  long memFree = std::stol(GetKeyValue(stream, "MemFree:"));
+  long memTotal = std::stol(GetKeyValue(stream, filterMemTotalString));
+  long memFree = std::stol(GetKeyValue(stream, filterMemFreeString));
+  stream.close();
   return (float)(memTotal - memFree) / memTotal;
 }
 
@@ -119,6 +121,7 @@ long LinuxParser::UpTime() {
   if (!GetLineTokens(stream, tokens, 1)) {
     throw std::runtime_error("Cannot parse uptime file");
   }
+  stream.close();
   return std::stol(tokens.at(0));
 }
 
@@ -139,7 +142,7 @@ long LinuxParser::ActiveJiffies(int pid) {
                             std::stol(tokens.at(PIDStats::kStime_)) +
                             std::stol(tokens.at(PIDStats::kCUtime_)) +
                             std::stol(tokens.at(PIDStats::kCStime_));
-
+  stream.close();
   return ((float)active_clock_ticks / (float)sysconf(_SC_CLK_TCK));
   // no of process ticks / ticks per jiffy = no of active jiffies
 }
@@ -165,23 +168,29 @@ vector<string> LinuxParser::CpuUtilization() {
   std::ifstream stream(kProcDirectory + kStatFilename);
   vector<string> tokens;
   if (!GetLineTokens(stream, tokens, 1 + CPUStates::kCPUNumStates_) ||
-      tokens.at(0) != "cpu") {
+      tokens.at(0) != filterCpu) {
     throw std::runtime_error("Cannot parse /proc/stat for CPU");
   }
   tokens.erase(tokens.begin());
+  stream.close();
   return tokens;
 }
 
 // DONE: Read and return the total number of processes
 int LinuxParser::TotalProcesses() {
   std::ifstream stream(kProcDirectory + kStatFilename);
-  return std::stoi(GetKeyValue(stream, "processes"));
+  int total_processes = std::stoi(GetKeyValue(stream, filterProcesses));
+  stream.close();
+  return total_processes;
 }
 
 // DONE: Read and return the number of running processes
 int LinuxParser::RunningProcesses() {
   std::ifstream stream(kProcDirectory + kStatFilename);
-  return std::stoi(GetKeyValue(stream, "procs_running"));
+  int running_processes =
+      std::stoi(GetKeyValue(stream, filterRunningProcesses));
+  stream.close();
+  return running_processes;
 }
 
 // DONE: Read and return the command associated with a process
@@ -194,6 +203,7 @@ string LinuxParser::Command(int pid) {
                                                  // spliiting the line by space
     throw std::runtime_error("Cannot parse /prod/pid/cmdline file");
   }
+  stream.close();
   return tokens.at(0);
 }
 
@@ -201,7 +211,9 @@ string LinuxParser::Command(int pid) {
 // REMOVE: [[maybe_unused]] once you define the function
 string LinuxParser::Ram(int pid) {
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatusFilename);
-  long ram = std::stol(GetKeyValue(stream, "VmSize:")) / 1024;
+  long ram = std::stol(GetKeyValue(stream, filterProcMem)) / 1024;
+  // Using VmRSS instead of VmSize as per reviewer suggestions
+  stream.close();
   return std::to_string(ram);
 }
 
@@ -209,7 +221,7 @@ string LinuxParser::Ram(int pid) {
 // REMOVE: [[maybe_unused]] once you define the function
 string LinuxParser::Uid(int pid) {
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatusFilename);
-  return GetKeyValue(stream, "Uid:");
+  return GetKeyValue(stream, filterUID);
 }
 
 // DONE: Read and return the user associated with a process
@@ -217,8 +229,10 @@ string LinuxParser::Uid(int pid) {
 string LinuxParser::User(int pid) {
   string uid = Uid(pid);
   std::ifstream stream(kPasswordPath);
-  return GetKeyValue(stream, uid, UserTokens::kUserID_, UserTokens::kUserName_,
-                     ':');
+  string username = GetKeyValue(stream, uid, UserTokens::kUserID_,
+                                UserTokens::kUserName_, ':');
+  stream.close();
+  return username;
 }
 
 // DONE: Read and return the uptime of a process
@@ -229,7 +243,8 @@ long LinuxParser::UpTime(int pid) {
   if (!GetLineTokens(stream, tokens, PIDStats::kPIDStatNumTokens_)) {
     throw std::runtime_error("Cannot parse /prod/pid/stats");
   }
-  return std::stol(tokens.at(PIDStats::kUptime_)) -
+  stream.close();
+  return UpTime() -
          (std::stol(tokens.at(PIDStats::kStarttime_)) / sysconf(_SC_CLK_TCK));
   // System Uptime - Process Starttime = Process
   // Uptime where Clock ticks since start /

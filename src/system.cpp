@@ -35,8 +35,8 @@ Processor& System::Cpu() { return cpu_; }
 // DONE: Return a container composed of the system's processes
 vector<Process>& System::Processes() {
   processes_.clear();
-  for (int pid : LinuxParser::Pids()) {
-    processes_.emplace_back(Process(pid));
+  for (const int& pid : LinuxParser::Pids()) {
+    processes_.emplace_back(pid);
   }
   std::sort(processes_.rbegin(), processes_.rend());
   return processes_;
